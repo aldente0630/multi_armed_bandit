@@ -1,1 +1,1 @@
-# multi_armed_bandit
+# Multi Armed Bandit
