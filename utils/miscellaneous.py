@@ -81,7 +81,7 @@ def calculate_avg_payoff_seq(payoffs):
     return np.cumsum(payoffs) / np.cumsum(np.ones(payoffs.shape))
 
 
-def parse_data_from_file(data_file_paths):
+def parse_data_from_file(data_file_paths, share_coeff=False):
     for data_file_path in data_file_paths:
         with gzip.open(data_file_path, 'rt') as file:
             for line in file:
@@ -92,15 +92,19 @@ def parse_data_from_file(data_file_paths):
                     values = chunk.rstrip().split(' ')
                     if i == 0:
                         timestamp, logged_arm_id, payoff = values[0], int(values[1]), int(values[2])
-                    else:
+                    elif len(values) == 7:
                         feature[values[0]] = np.array(list(map(lambda x: float(x.split(':')[1]), sorted(values[1:]))))
                 arm_ids = set(feature.keys())
                 arm_ids = set(map(lambda x: int(x), arm_ids.difference({'user'})))
-                context = {arm_id: feature['user'] for arm_id in arm_ids}
+                if not share_coeff:
+                    context = {arm_id: feature['user'] for arm_id in arm_ids}
+                else:
+                    context = {arm_id: np.append(feature['user'], np.outer(
+                        feature['user'], feature[str(arm_id)]).flatten()[1:]) for arm_id in arm_ids}
                 yield timestamp, arm_ids, context, logged_arm_id, payoff
 
 
-def search_param(logger, base_policy_learner, param_grid, base_data_parser, *args):
+def search_param(logger, base_policy_learner, param_grid, base_data_parser, **kwargs):
     results = []
     keys, values = zip(*param_grid.items())
     for value_tuple in itertools.product(*values):
@@ -112,7 +116,7 @@ def search_param(logger, base_policy_learner, param_grid, base_data_parser, *arg
                 setattr(policy_learner, key, value)
             else:
                 setattr(policy_learner.policy, key, value)
-        data_parser = base_data_parser(*args)
+        data_parser = base_data_parser(**kwargs)
         policy_learner.learn_policy(data_parser)
         results.append([param, calculate_avg_payoff(policy_learner.payoffs),
                         calculate_avg_payoff_seq(policy_learner.payoffs)])
