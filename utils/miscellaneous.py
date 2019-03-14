@@ -29,7 +29,7 @@ class PolicyLearner:
         self._action_storage = action.MemoryActionStorage()
         self.policy = policy(self._history_storage, self._model_storage, self._action_storage, **self._params)
         self.payoffs = np.array([])
-        self._num_preds, self._num_fits = 0, 0
+        self._n = 0
 
     @staticmethod
     def _make_arm(arm_ids):
@@ -40,7 +40,6 @@ class PolicyLearner:
         return arms
 
     def learn_policy(self, data_parser):
-        self._num_preds = 0
         np.random.seed(self.seed)
         while True:
             try:
@@ -63,11 +62,12 @@ class PolicyLearner:
                     if (self.data_size is None) or (np.random.uniform() <= self.data_size):
                         self.policy.reward(history_id, {recommendations[0].action.id: payoff})
                         self.payoffs = np.append(self.payoffs, np.array([payoff]))
-                    self._num_fits += 1
-                    if (self.reset_freq is not None) and (self._num_fits % self.reset_freq == 0):
-                        self._history_storage = history.MemoryHistoryStorage()
-                self._num_preds += 1
-                if (self.max_iter is not None) and (self._num_preds >= self.max_iter):
+                self._n += 1
+                if (self.reset_freq is not None) and (self._n % self.reset_freq == 0):
+                    del self.policy._history_storage
+                    _ = gc.collect()
+                    self.policy._history_storage = history.MemoryHistoryStorage()
+                if (self.max_iter is not None) and (self._n >= self.max_iter):
                     break
             except StopIteration:
                 break
