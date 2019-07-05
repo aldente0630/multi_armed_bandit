@@ -32,10 +32,10 @@ class PolicyLearner:
         self._n = 0
 
     @staticmethod
-    def _make_arm(arm_ids):
+    def _make_arm(action_ids):
         arms = []
-        for arm_id in arm_ids:
-            arm = action.Action(arm_id)
+        for action_id in action_ids:
+            arm = action.Action(action_id)
             arms.append(arm)
         return arms
 
@@ -43,7 +43,7 @@ class PolicyLearner:
         np.random.seed(self.seed)
         while True:
             try:
-                timestamp, current_arm_ids, context, logged_arm_id, payoff = next(data_parser)
+                current_arm_ids, context, logged_arm_id, payoff = next(data_parser)
                 if self._action_storage.count():
                     previous_arm_ids = set(self._action_storage.iterids())
                     add_arm_ids = current_arm_ids.difference(previous_arm_ids)
@@ -79,29 +79,6 @@ def calculate_avg_payoff(payoffs):
 
 def calculate_avg_payoff_seq(payoffs):
     return np.cumsum(payoffs) / np.cumsum(np.ones(payoffs.shape))
-
-
-def parse_data_from_file(data_file_paths, share_coeff=False):
-    for data_file_path in data_file_paths:
-        with gzip.open(data_file_path, 'rt') as file:
-            for line in file:
-                chunks = line.split('|')
-                feature = {}
-                timestamp, logged_arm_id, payoff = None, None, None
-                for i, chunk in enumerate(chunks):
-                    values = chunk.rstrip().split(' ')
-                    if i == 0:
-                        timestamp, logged_arm_id, payoff = values[0], int(values[1]), int(values[2])
-                    elif len(values) == 7:
-                        feature[values[0]] = np.array(list(map(lambda x: float(x.split(':')[1]), sorted(values[1:]))))
-                arm_ids = set(feature.keys())
-                arm_ids = set(map(lambda x: int(x), arm_ids.difference({'user'})))
-                if not share_coeff:
-                    context = {arm_id: feature['user'] for arm_id in arm_ids}
-                else:
-                    context = {arm_id: np.append(feature['user'], np.outer(
-                        feature['user'], feature[str(arm_id)]).flatten()[1:]) for arm_id in arm_ids}
-                yield timestamp, arm_ids, context, logged_arm_id, payoff
 
 
 def search_param(logger, base_policy_learner, param_grid, base_data_parser, **kwargs):
